@@ -23,7 +23,7 @@ class VelociTeamIA extends WorkerIA
 	 */
 	override public function getOrders( context:Galaxy ):Array<Order>
 	{
-		var result:Array<Order> = new Array<Order>();
+		/*var result:Array<Order> = new Array<Order>();
 		var myPlanets:Array<Planet> = GameUtil.getPlayerPlanets( id, context );	
 		var otherPlanets:Array<Planet> = GameUtil.getEnnemyPlanets(id, context);
 		if ( otherPlanets != null && otherPlanets.length > 0 )
@@ -37,6 +37,23 @@ class VelociTeamIA extends WorkerIA
 				}	
 			}
 		}
+		return result;*/
+		
+		var result:Array<Order> = new Array<Order>();
+		var allTargets = getPlanetsScore(context);
+		
+		for (i in 0...allTargets.length) 
+		{
+			var killer = allTargets[i].origin;
+			var smallest = allTargets[i].getSmallest();
+			
+			if (killer.population >= smallest.score + 10){
+				result.push(new Order(killer.id, smallest.planet.id, smallest.score + 10));			
+			}else {
+				result.push(new Order(killer.id, smallest.planet.id, 1));			
+			}
+		}
+		
 		return result;
 	}
 	
@@ -55,6 +72,28 @@ class VelociTeamIA extends WorkerIA
 			
 		}
 		return result;
+	}
+	
+	public function getPlanetsScore(context:Galaxy):Array<Targets> {
+		var myPlanets = GameUtil.getPlayerPlanets(id, context);
+		var ennemyPlanets = GameUtil.getEnnemyPlanets(id, context);
+		var allTargets = new Array<Targets>();
+		
+		for (i in 0...myPlanets.length) 
+		{
+			var targets = new Targets(myPlanets[i]);
+			for (j in 0...ennemyPlanets.length) {
+				targets.addTarget(getPlanetScore(myPlanets[i], ennemyPlanets[j]));
+			}
+			allTargets.push(targets);
+		}
+		
+		return allTargets;
+	}
+	
+	public function getPlanetScore(origin:Planet, target:Planet):Target
+	{
+		return new Target(target, target.population + GameUtil.getTravelNumTurn(origin, target) * 5);
 	}
 	
 }
