@@ -78,7 +78,8 @@ VelociTeamIA.main = function() {
 VelociTeamIA.__super__ = WorkerIA;
 VelociTeamIA.prototype = $extend(WorkerIA.prototype,{
 	getPlanetScore: function(origin,target) {
-		return new Target(target,target.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(origin,target) * 5);
+		var score = Math.round(target.population / target.size + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(origin,target) * 5);
+		return new Target(target,score);
 	}
 	,getPlanetsScore: function(context) {
 		var myPlanets = com.tamina.planetwars.utils.GameUtil.getPlayerPlanets(this.id,context);
@@ -119,7 +120,8 @@ VelociTeamIA.prototype = $extend(WorkerIA.prototype,{
 			var i = _g1++;
 			var killer = allTargets[i].origin;
 			var smallest = allTargets[i].getSmallest();
-			if(killer.population >= smallest.score + 10) result.push(new com.tamina.planetwars.data.Order(killer.id,smallest.planet.id,smallest.score + 10)); else result.push(new com.tamina.planetwars.data.Order(killer.id,smallest.planet.id,1));
+			var units = smallest.planet.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(killer,smallest.planet) * 5 + 10;
+			if(killer.population >= units) result.push(new com.tamina.planetwars.data.Order(killer.id,smallest.planet.id,units));
 		}
 		return result;
 	}

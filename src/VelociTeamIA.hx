@@ -47,11 +47,13 @@ class VelociTeamIA extends WorkerIA
 			var killer = allTargets[i].origin;
 			var smallest = allTargets[i].getSmallest();
 			
-			if (killer.population >= smallest.score + 10){
-				result.push(new Order(killer.id, smallest.planet.id, smallest.score + 10));			
-			}else {
-				result.push(new Order(killer.id, smallest.planet.id, 1));			
-			}
+			var units = smallest.planet.population + (GameUtil.getTravelNumTurn(killer, smallest.planet) * 5) + 10;
+			
+			if (killer.population >= units){
+				result.push(new Order(killer.id, smallest.planet.id, units));
+			} /*else {
+				result.push(new Order(killer.id, smallest.planet.id, 5));
+			}*/
 		}
 		
 		return result;
@@ -93,7 +95,8 @@ class VelociTeamIA extends WorkerIA
 	
 	public function getPlanetScore(origin:Planet, target:Planet):Target
 	{
-		return new Target(target, target.population + GameUtil.getTravelNumTurn(origin, target) * 5);
+		var score = Math.round((target.population / target.size) + GameUtil.getTravelNumTurn(origin, target) * 5);
+		return new Target(target, score);
 	}
 	
 }
