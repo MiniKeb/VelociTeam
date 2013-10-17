@@ -16,21 +16,23 @@ class Targets
 		this.targets = new Array<Target>();
 	}
 	
-	public function addTarget(target:Target):Void {
+	public function addTarget(target:Target) : Void {
 		this.targets.push(target);
 	}
 	
 	public function clean():Void {
 	}
 	
-	public function getSmallest():Target {
+	public function getSmallest() : Target {
 		var smallest : Target;
 		smallest = null;
 		
 		for (i in 0...this.targets.length) 
 		{
-			if (smallest == null || smallest.score > this.targets[i].score){
-				smallest =  this.targets[i];
+			var currentTarget = this.targets[i];
+			if (smallest == null || smallest.score > currentTarget.score)
+			{
+				smallest =  currentTarget;
 			}
 		}
 		

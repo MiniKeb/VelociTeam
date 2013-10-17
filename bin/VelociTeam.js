@@ -28,7 +28,8 @@ Targets.prototype = {
 		var _g1 = 0, _g = this.targets.length;
 		while(_g1 < _g) {
 			var i = _g1++;
-			if(smallest == null || smallest.score > this.targets[i].score) smallest = this.targets[i];
+			var currentTarget = this.targets[i];
+			if(smallest == null || smallest.score > currentTarget.score) smallest = currentTarget;
 		}
 		return smallest;
 	}
@@ -68,8 +69,9 @@ WorkerIA.prototype = {
 		return result;
 	}
 }
-var VelociTeamIA = function(name,color) {
-	WorkerIA.call(this,name,color);
+var VelociTeamIA = function() {
+	WorkerIA.call(this,"",0);
+	this.ennemyId = null;
 };
 VelociTeamIA.__name__ = true;
 VelociTeamIA.main = function() {
@@ -79,6 +81,7 @@ VelociTeamIA.__super__ = WorkerIA;
 VelociTeamIA.prototype = $extend(WorkerIA.prototype,{
 	getPlanetScore: function(origin,target) {
 		var score = Math.round(target.population / target.size + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(origin,target) * 5);
+		if(this.ennemyId != null && target.owner.id == this.ennemyId) score = score - 5 * target.size;
 		return new Target(target,score);
 	}
 	,getPlanetsScore: function(context) {
@@ -98,29 +101,18 @@ VelociTeamIA.prototype = $extend(WorkerIA.prototype,{
 		}
 		return allTargets;
 	}
-	,getNearestEnnemyPlanet: function(source,candidats) {
-		var result = candidats[0];
-		var currentDist = com.tamina.planetwars.utils.GameUtil.getDistanceBetween(new com.tamina.planetwars.geom.Point(source.x,source.y),new com.tamina.planetwars.geom.Point(result.x,result.y));
-		var _g1 = 0, _g = candidats.length;
-		while(_g1 < _g) {
-			var i = _g1++;
-			var element = candidats[i];
-			if(currentDist > com.tamina.planetwars.utils.GameUtil.getDistanceBetween(new com.tamina.planetwars.geom.Point(source.x,source.y),new com.tamina.planetwars.geom.Point(element.x,element.y))) {
-				currentDist = com.tamina.planetwars.utils.GameUtil.getDistanceBetween(new com.tamina.planetwars.geom.Point(source.x,source.y),new com.tamina.planetwars.geom.Point(element.x,element.y));
-				result = element;
-			}
-		}
-		return result;
-	}
 	,getOrders: function(context) {
 		var result = new Array();
 		var allTargets = this.getPlanetsScore(context);
+		var minimumPopulation = 10;
+		var fleets = com.tamina.planetwars.utils.GameUtil.getEnnemyFleet(this.id,context);
+		if(this.ennemyId == null && fleets.length > 0) this.ennemyId = fleets[0].owner.id;
 		var _g1 = 0, _g = allTargets.length;
 		while(_g1 < _g) {
 			var i = _g1++;
 			var killer = allTargets[i].origin;
 			var smallest = allTargets[i].getSmallest();
-			var units = smallest.planet.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(killer,smallest.planet) * 5 + 10;
+			var units = smallest.planet.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(killer,smallest.planet) * 5 + minimumPopulation;
 			if(killer.population >= units) result.push(new com.tamina.planetwars.data.Order(killer.id,smallest.planet.id,units));
 		}
 		return result;

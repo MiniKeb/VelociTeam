@@ -1,5 +1,6 @@
 package ;
 import com.tamina.planetwars.data.Galaxy;
+import com.tamina.planetwars.data.Game;
 import com.tamina.planetwars.data.Order;
 import com.tamina.planetwars.data.Planet;
 import com.tamina.planetwars.utils.GameUtil;
@@ -11,6 +12,8 @@ import com.tamina.planetwars.geom.Point;
 
 class VelociTeamIA extends WorkerIA
 {
+	private var ennemyId : String;
+	
 	/**
 	 * @internal
 	 */
@@ -18,61 +21,39 @@ class VelociTeamIA extends WorkerIA
 		WorkerIA.instance = new VelociTeamIA();
 	}
 	
+	public function new() 
+	{
+		super("", 0);
+		this.ennemyId = null;
+	}
+	
+	
 	/**
 	 * @inheritDoc
 	 */
 	override public function getOrders( context:Galaxy ):Array<Order>
 	{
-		/*var result:Array<Order> = new Array<Order>();
-		var myPlanets:Array<Planet> = GameUtil.getPlayerPlanets( id, context );	
-		var otherPlanets:Array<Planet> = GameUtil.getEnnemyPlanets(id, context);
-		if ( otherPlanets != null && otherPlanets.length > 0 )
-		{
-			for ( i in 0...myPlanets.length )
-			{
-				var myPlanet:Planet = myPlanets[ i ];
-				var target:Planet = getNearestEnnemyPlanet(myPlanet, otherPlanets);
-				if (myPlanet.population >=50) {
-					result.push( new Order( myPlanet.id, target.id, 50 ) );
-				}	
-			}
-		}
-		return result;*/
-		
 		var result:Array<Order> = new Array<Order>();
 		var allTargets = getPlanetsScore(context);
+		var minimumPopulation = Game.PLANET_GROWTH * 2;
+		var fleets = GameUtil.getEnnemyFleet(id, context);
+		
+		if (this.ennemyId == null && fleets.length > 0) {
+			this.ennemyId = fleets[0].owner.id;
+		}
 		
 		for (i in 0...allTargets.length) 
 		{
 			var killer = allTargets[i].origin;
 			var smallest = allTargets[i].getSmallest();
 			
-			var units = smallest.planet.population + (GameUtil.getTravelNumTurn(killer, smallest.planet) * 5) + 10;
+			var units = smallest.planet.population + (GameUtil.getTravelNumTurn(killer, smallest.planet) * Game.PLANET_GROWTH) + minimumPopulation;
 			
 			if (killer.population >= units){
 				result.push(new Order(killer.id, smallest.planet.id, units));
-			} /*else {
-				result.push(new Order(killer.id, smallest.planet.id, 5));
-			}*/
+			}
 		}
 		
-		return result;
-	}
-	
-	private function getNearestEnnemyPlanet( source:Planet, candidats:Array<Planet> ):Planet
-	{
-		var result:Planet = candidats[ 0 ];
-		var currentDist:Float = GameUtil.getDistanceBetween( new Point( source.x, source.y ), new Point( result.x, result.y ) );
-		for ( i in 0...candidats.length )
-		{
-			var element:Planet = candidats[ i ];
-			if ( currentDist > GameUtil.getDistanceBetween( new Point( source.x, source.y ), new Point( element.x, element.y ) ) )
-			{
-				currentDist = GameUtil.getDistanceBetween( new Point( source.x, source.y ), new Point( element.x, element.y ) );
-				result = element;
-			}
-			
-		}
 		return result;
 	}
 	
@@ -95,7 +76,10 @@ class VelociTeamIA extends WorkerIA
 	
 	public function getPlanetScore(origin:Planet, target:Planet):Target
 	{
-		var score = Math.round((target.population / target.size) + GameUtil.getTravelNumTurn(origin, target) * 5);
+		var score = Math.round((target.population / target.size) + GameUtil.getTravelNumTurn(origin, target) * Game.PLANET_GROWTH);
+		if (ennemyId != null && target.owner.id == ennemyId) {
+			score = score - (Game.PLANET_GROWTH * target.size);
+		}
 		return new Target(target, score);
 	}
 	
