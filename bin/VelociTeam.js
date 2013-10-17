@@ -5,6 +5,85 @@ function $extend(from, fields) {
 	if( fields.toString !== Object.prototype.toString ) proto.toString = fields.toString;
 	return proto;
 }
+var Distance = function(planet,meanTravelTurnCount) {
+	this.planet = planet;
+	this.meanTravelTurnCount = meanTravelTurnCount;
+};
+Distance.__name__ = true;
+var GalaxyInfo = function() {
+};
+GalaxyInfo.__name__ = true;
+var GalaxyInfoBuilder = function(myId,galaxy) {
+	this.myPlanets = com.tamina.planetwars.utils.GameUtil.getPlayerPlanets(myId,galaxy);
+	this.ennemyPlanets = com.tamina.planetwars.utils.GameUtil.getEnnemyPlanets(myId,galaxy);
+};
+GalaxyInfoBuilder.__name__ = true;
+GalaxyInfoBuilder.prototype = {
+	getDensityPercentage: function(planet) {
+		return planet.population / com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(planet.size);
+	}
+	,getDensity: function(planet) {
+		return planet.population / planet.size;
+	}
+	,build: function() {
+		var info = new GalaxyInfo();
+		var _g1 = 0, _g = this.ennemyPlanets.length;
+		while(_g1 < _g) {
+			var ennemyIndex = _g1++;
+			var ennemyPlanet = this.ennemyPlanets[ennemyIndex];
+			var ennemyDensity = this.getDensity(ennemyPlanet);
+			var totalDistance = 0;
+			var totalPopulation = 0;
+			var totalSize = 0;
+			var availableResource = 0;
+			var _g3 = 0, _g2 = this.myPlanets.length;
+			while(_g3 < _g2) {
+				var myIndex = _g3++;
+				var myPlanet = this.myPlanets[myIndex];
+				var turnDistance = com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,ennemyPlanet);
+				totalDistance = totalDistance + turnDistance;
+				totalPopulation = totalPopulation + myPlanet.population;
+				totalSize = totalSize + myPlanet.size;
+			}
+			info.myTotalPopulation = totalPopulation;
+			info.myTotalSize = totalSize;
+			var meanDistance = totalDistance / this.myPlanets.length;
+			if(info.bestRatio == null || this.getDensity(info.bestRatio.planet) + info.bestRatio.meanTravelTurnCount > ennemyDensity + meanDistance) info.bestRatio = new Distance(ennemyPlanet,meanDistance);
+			if(info.closestPlanet == null || info.closestPlanet.meanTravelTurnCount > meanDistance) info.closestPlanet = new Distance(ennemyPlanet,meanDistance);
+			if(info.farestPlanet == null || info.farestPlanet.meanTravelTurnCount < meanDistance) info.farestPlanet = new Distance(ennemyPlanet,meanDistance);
+			if(info.biggestPlanet == null || info.biggestPlanet.size < ennemyPlanet.size) info.biggestPlanet = ennemyPlanet;
+			if(info.lessPopulatePlanet == null || info.lessPopulatePlanet.population > ennemyPlanet.population) info.lessPopulatePlanet = ennemyPlanet;
+			if(info.sparsestPlanet == null || this.getDensity(info.sparsestPlanet) > ennemyDensity) info.sparsestPlanet = ennemyPlanet;
+			if(info.densestPlanet == null || this.getDensity(info.densestPlanet) < ennemyDensity) info.densestPlanet = ennemyPlanet;
+		}
+		return info;
+	}
+}
+var Logs = function() {
+	this.logs = new Array();
+};
+Logs.__name__ = true;
+Logs.prototype = {
+	containsOrderTo: function(planet) {
+		var contains = false;
+		if(this.logs.length > 0) {
+			var _g = 1;
+			while(_g < 4) {
+				var i = _g++;
+				var current = this.logs[this.logs.length - i];
+				var _g2 = 0, _g1 = current.length;
+				while(_g2 < _g1) {
+					var j = _g2++;
+					contains = contains || current[j].targetID == planet.id;
+				}
+			}
+		}
+		return contains;
+	}
+	,addOrders: function(orders) {
+		this.logs.push(orders);
+	}
+}
 var Std = function() { }
 Std.__name__ = true;
 Std.string = function(s) {
@@ -68,8 +147,11 @@ WorkerIA.prototype = {
 		return result;
 	}
 }
-var VelociTeamIA = function(name,color) {
-	WorkerIA.call(this,name,color);
+var VelociTeamIA = function() {
+	WorkerIA.call(this,"",0);
+	this.logs = new Logs();
+	this.minPopulation = 20;
+	this.ennemyId = null;
 };
 VelociTeamIA.__name__ = true;
 VelociTeamIA.main = function() {
@@ -112,16 +194,130 @@ VelociTeamIA.prototype = $extend(WorkerIA.prototype,{
 		}
 		return result;
 	}
+	,attack: function(source,target,galaxyInfo,forceAttack) {
+		if(forceAttack == null) forceAttack = false;
+		var ratio = Math.round(source.size / galaxyInfo.myTotalSize);
+		var availableUnits = (source.population - this.minPopulation) * ratio;
+		var excessUnits = com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(source,target) * 5;
+		var sendUnits = availableUnits + excessUnits;
+		var needUnits = target.population + excessUnits;
+		if(source.population - this.minPopulation >= this.minPopulation) return new com.tamina.planetwars.data.Order(source.id,target.id,source.population - this.minPopulation);
+		return null;
+	}
 	,getOrders: function(context) {
+		var info = new GalaxyInfoBuilder(this.id,context).build();
+		var myPlanets = com.tamina.planetwars.utils.GameUtil.getPlayerPlanets(this.id,context);
+		var otherPlanets = com.tamina.planetwars.utils.GameUtil.getEnnemyPlanets(this.id,context);
+		var fleets = com.tamina.planetwars.utils.GameUtil.getEnnemyFleet(this.id,context);
+		if(this.ennemyId == null && fleets.length > 0) this.ennemyId = fleets[0].owner.id;
 		var result = new Array();
-		var allTargets = this.getPlanetsScore(context);
-		var _g1 = 0, _g = allTargets.length;
-		while(_g1 < _g) {
-			var i = _g1++;
-			var killer = allTargets[i].origin;
-			var smallest = allTargets[i].getSmallest();
-			var units = smallest.planet.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(killer,smallest.planet) * 5 + 10;
-			if(killer.population >= units) result.push(new com.tamina.planetwars.data.Order(killer.id,smallest.planet.id,units));
+		if(myPlanets.length == 1) {
+			var source = myPlanets[0];
+			var cheapCost = 1000;
+			var target = null;
+			var _g1 = 0, _g = otherPlanets.length;
+			while(_g1 < _g) {
+				var i = _g1++;
+				var otherPlanet = otherPlanets[i];
+				var cost = otherPlanet.population / otherPlanet.size + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(source,otherPlanet) * 5;
+				if(cheapCost > cost) {
+					cheapCost = cost;
+					target = otherPlanet;
+				}
+			}
+			if(target != null) {
+				var availableUnitCount = source.population - source.size * 5;
+				if(availableUnitCount > target.population + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(source,target) * 5) {
+					var units = availableUnitCount > com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(source,target) * 5?com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(source,target) * 5:availableUnitCount;
+					result.push(new com.tamina.planetwars.data.Order(source.id,target.id,units));
+				}
+			}
+		} else if(myPlanets.length == 2) {
+			var cheapCost = 1000;
+			var totalAvailableUnitCount = 0;
+			var target = null;
+			var totalTravelCost = 0;
+			var _g1 = 0, _g = otherPlanets.length;
+			while(_g1 < _g) {
+				var i = _g1++;
+				var otherPlanet = otherPlanets[i];
+				totalAvailableUnitCount = 0;
+				var totalCost = 0;
+				var targetTotalTravelCost = 0;
+				var _g3 = 0, _g2 = myPlanets.length;
+				while(_g3 < _g2) {
+					var j = _g3++;
+					var myPlanet = myPlanets[j];
+					var travelCost = com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,otherPlanet) * 5;
+					totalCost = totalCost + otherPlanet.population / otherPlanet.size + travelCost;
+					totalAvailableUnitCount = totalAvailableUnitCount + (myPlanet.population - myPlanet.size * 5);
+					targetTotalTravelCost = targetTotalTravelCost + travelCost;
+				}
+				var meanCost = totalCost / myPlanets.length;
+				if(cheapCost > meanCost) {
+					cheapCost = meanCost;
+					target = otherPlanet;
+					totalTravelCost = targetTotalTravelCost;
+				}
+			}
+			if(target != null) {
+				if(totalAvailableUnitCount > target.population + totalTravelCost) {
+					var sentUnits = 0;
+					var _g1 = 0, _g = myPlanets.length;
+					while(_g1 < _g) {
+						var j = _g1++;
+						var myPlanet = myPlanets[j];
+						var availableUnitCount = myPlanet.population - myPlanet.size * 5;
+						var units = availableUnitCount > com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,target) * 5 - sentUnits?com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,target) * 5 - sentUnits:availableUnitCount;
+						result.push(new com.tamina.planetwars.data.Order(myPlanet.id,target.id,units));
+						sentUnits = sentUnits + units;
+					}
+				}
+			}
+		} else {
+			var cheapCost = 1000;
+			var totalAvailableUnitCount = 0;
+			var target = null;
+			var totalTravelCost = 0;
+			var _g1 = 0, _g = otherPlanets.length;
+			while(_g1 < _g) {
+				var i = _g1++;
+				var otherPlanet = otherPlanets[i];
+				if(otherPlanet.owner.id == this.ennemyId) {
+					totalAvailableUnitCount = 0;
+					var totalCost = 0;
+					var targetTotalTravelCost = 0;
+					var _g3 = 0, _g2 = myPlanets.length;
+					while(_g3 < _g2) {
+						var j = _g3++;
+						var myPlanet = myPlanets[j];
+						var travelCost = com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,otherPlanet) * 5;
+						totalCost = totalCost + otherPlanet.population / otherPlanet.size + travelCost;
+						totalAvailableUnitCount = totalAvailableUnitCount + (myPlanet.population - myPlanet.size * 5);
+						targetTotalTravelCost = targetTotalTravelCost + travelCost;
+					}
+					var meanCost = totalCost / myPlanets.length;
+					if(cheapCost > meanCost) {
+						cheapCost = meanCost;
+						target = otherPlanet;
+						totalTravelCost = targetTotalTravelCost;
+					}
+				}
+			}
+			if(target != null) {
+				if(totalAvailableUnitCount > target.population + totalTravelCost) {
+					var sentUnits = 0;
+					var _g1 = 0, _g = myPlanets.length;
+					while(_g1 < _g) {
+						var j = _g1++;
+						var myPlanet = myPlanets[j];
+						var availableUnitCount = myPlanet.population - myPlanet.size * 5;
+						var units = availableUnitCount > com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,target) * 5 - sentUnits?com.tamina.planetwars.data.PlanetPopulation.getMaxPopulation(target.size) + com.tamina.planetwars.utils.GameUtil.getTravelNumTurn(myPlanet,target) * 5 - sentUnits:availableUnitCount;
+						result.push(new com.tamina.planetwars.data.Order(myPlanet.id,target.id,units));
+						sentUnits = sentUnits + units;
+					}
+				}
+			}
 		}
 		return result;
 	}

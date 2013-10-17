@@ -1,5 +1,8 @@
 package ;
+import com.tamina.planetwars.data.Galaxy;
 import com.tamina.planetwars.data.Planet;
+import com.tamina.planetwars.data.PlanetPopulation;
+import com.tamina.planetwars.utils.GameUtil;
 
 /**
  * ...
